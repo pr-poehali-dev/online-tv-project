@@ -24,7 +24,7 @@ const categories = [
   "Документальные"
 ];
 
-// Коллекция видео по категориям
+// Коллекция видео по категориям с правильными названиями
 const videoCollections: Record<string, Array<{ url: string, title: string, description: string, duration: number }>> = {
   "Фильмы": [
     { url: "https://storage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4", title: "Слезы Стали", description: "Фантастический фильм о роботах", duration: 734 },
@@ -88,98 +88,151 @@ const videoCollections: Record<string, Array<{ url: string, title: string, descr
   ]
 };
 
-// Функция для получения уникального видео для канала
-const getUniqueVideo = (category: string, index: number) => {
-  const videos = videoCollections[category] || videoCollections["Фильмы"];
-  // Используем модуль для циклического перебора видео в коллекции
-  const videoIndex = index % videos.length;
-  return videos[videoIndex];
-};
-
+// Генерация каналов с соответствующими названиями и контентом
 const generateMockChannels = (count: number): Channel[] => {
   const channels: Channel[] = [];
-  const usedVideos = new Set<string>(); // Для отслеживания уже использованных комбинаций
   
-  for (let i = 1; i <= count; i++) {
-    const categoryIndex = Math.floor(Math.random() * categories.length);
-    const category = categories[categoryIndex];
+  // Сначала создаем каналы для каждого видео из каждой категории
+  // чтобы быть уверенными, что каждое видео будет доступно
+  let channelId = 1;
+  
+  // Проходим по всем категориям и создаем каналы для каждого видео
+  for (const category of categories) {
+    const videos = videoCollections[category] || [];
     
-    // Получаем базовую информацию для канала
-    let name = "";
-    let baseName = "";
-    
-    switch (category) {
-      case "Фильмы":
-        baseName = ["Кино", "Фильм", "Премьера", "Классика"][Math.floor(Math.random() * 4)];
-        break;
-      case "Сериалы":
-        baseName = ["Сериал", "Хит", "Твой", "Лучший"][Math.floor(Math.random() * 4)];
-        break;
-      case "Новости":
-        baseName = ["Новости", "Вести", "24 часа", "Мир"][Math.floor(Math.random() * 4)];
-        break;
-      case "Спорт":
-        baseName = ["Спорт", "Матч", "Футбол", "Чемпионат"][Math.floor(Math.random() * 4)];
-        break;
-      case "Развлечения":
-        baseName = ["Шоу", "Юмор", "Развлечения", "ТВ"][Math.floor(Math.random() * 4)];
-        break;
-      case "Детские":
-        baseName = ["Детский", "Мультики", "Сказка", "Карусель"][Math.floor(Math.random() * 4)];
-        break;
-      case "Наука":
-        baseName = ["Наука", "Открытие", "Знание", "Эксперимент"][Math.floor(Math.random() * 4)];
-        break;
-      case "Музыка":
-        baseName = ["Музыка", "Хиты", "Клипы", "Мелодия"][Math.floor(Math.random() * 4)];
-        break;
-      case "Аниме":
-        baseName = ["Аниме", "Манга", "Япония", "Мультфильм"][Math.floor(Math.random() * 4)];
-        break;
-      case "Документальные":
-        baseName = ["Док", "История", "Расследование", "Факты"][Math.floor(Math.random() * 4)];
-        break;
-      default:
-        baseName = "Канал";
+    // Для каждого видео в категории создаем канал
+    for (const video of videos) {
+      // Создаем префикс канала в зависимости от категории
+      let channelPrefix = "";
+      
+      switch (category) {
+        case "Фильмы":
+          channelPrefix = ["Кино", "Фильм", "Премьера", "Классика"][Math.floor(Math.random() * 4)];
+          break;
+        case "Сериалы":
+          channelPrefix = ["Сериал", "Хит", "Твой", "Лучший"][Math.floor(Math.random() * 4)];
+          break;
+        case "Новости":
+          channelPrefix = ["Новости", "Вести", "24 часа", "Мир"][Math.floor(Math.random() * 4)];
+          break;
+        case "Спорт":
+          channelPrefix = ["Спорт", "Матч", "Футбол", "Чемпионат"][Math.floor(Math.random() * 4)];
+          break;
+        case "Развлечения":
+          channelPrefix = ["Шоу", "Юмор", "Развлечения", "ТВ"][Math.floor(Math.random() * 4)];
+          break;
+        case "Детские":
+          channelPrefix = ["Детский", "Мультики", "Сказка", "Карусель"][Math.floor(Math.random() * 4)];
+          break;
+        case "Наука":
+          channelPrefix = ["Наука", "Открытие", "Знание", "Эксперимент"][Math.floor(Math.random() * 4)];
+          break;
+        case "Музыка":
+          channelPrefix = ["Музыка", "Хиты", "Клипы", "Мелодия"][Math.floor(Math.random() * 4)];
+          break;
+        case "Аниме":
+          channelPrefix = ["Аниме", "Манга", "Япония", "Мультфильм"][Math.floor(Math.random() * 4)];
+          break;
+        case "Документальные":
+          channelPrefix = ["Док", "История", "Расследование", "Факты"][Math.floor(Math.random() * 4)];
+          break;
+        default:
+          channelPrefix = "Канал";
+      }
+      
+      // Создаем название канала включающее название видео
+      const channelName = `${channelPrefix} ${channelId}: ${video.title}`;
+      
+      // Добавляем канал в список
+      channels.push({
+        id: channelId,
+        name: channelName,
+        category,
+        thumbnail: `/placeholder.svg`,
+        videoUrl: video.url,
+        duration: video.duration,
+        description: video.description
+      });
+      
+      channelId++;
     }
-    
-    // Получаем уникальное видео для этого канала
-    const video = getUniqueVideo(category, i);
-    
-    // Создаем название канала
-    name = `${baseName} ${i}: ${video.title}`;
-    
-    // Проверяем уникальность комбинации
-    let uniqueKey = `${name}-${video.url}`;
-    let attempts = 0;
-    
-    // Если видео уже использовалось, пробуем другое
-    while (usedVideos.has(uniqueKey) && attempts < 5) {
-      const alternativeVideo = getUniqueVideo(category, i + attempts * 10);
-      name = `${baseName} ${i}: ${alternativeVideo.title}`;
-      uniqueKey = `${name}-${alternativeVideo.url}`;
-      video.url = alternativeVideo.url;
-      video.title = alternativeVideo.title;
-      video.description = alternativeVideo.description;
-      video.duration = alternativeVideo.duration;
-      attempts++;
-    }
-    
-    usedVideos.add(uniqueKey);
-    
-    channels.push({
-      id: i,
-      name,
-      category,
-      thumbnail: `/placeholder.svg`, // В реальном приложении здесь были бы миниатюры
-      videoUrl: video.url,
-      duration: video.duration,
-      description: video.description
-    });
   }
   
-  return channels;
+  // Если нам нужно больше каналов, чем у нас есть видео, генерируем дополнительные
+  const remainingChannels = count - channels.length;
+  
+  if (remainingChannels > 0) {
+    // Создаем дополнительные каналы, повторно используя существующие видео, но с другими названиями
+    for (let i = 0; i < remainingChannels; i++) {
+      const categoryIndex = Math.floor(Math.random() * categories.length);
+      const category = categories[categoryIndex];
+      const videos = videoCollections[category] || [];
+      
+      if (videos.length === 0) continue;
+      
+      // Случайное видео из категории
+      const videoIndex = Math.floor(Math.random() * videos.length);
+      const video = videos[videoIndex];
+      
+      // Создаем префикс канала в зависимости от категории (с небольшими вариациями)
+      let channelPrefix = "";
+      
+      switch (category) {
+        case "Фильмы":
+          channelPrefix = ["Кино", "Фильм", "Премьера", "Классика", "Blockbuster", "Хит экрана"][Math.floor(Math.random() * 6)];
+          break;
+        case "Сериалы":
+          channelPrefix = ["Сериал", "Хит", "Твой", "Лучший", "Series HD", "Сага"][Math.floor(Math.random() * 6)];
+          break;
+        case "Новости":
+          channelPrefix = ["Новости", "Вести", "24 часа", "Мир", "Информбюро", "Хроника"][Math.floor(Math.random() * 6)];
+          break;
+        case "Спорт":
+          channelPrefix = ["Спорт", "Матч", "Футбол", "Чемпионат", "Арена", "Олимп"][Math.floor(Math.random() * 6)];
+          break;
+        case "Развлечения":
+          channelPrefix = ["Шоу", "Юмор", "Развлечения", "ТВ", "FunTV", "Смех"][Math.floor(Math.random() * 6)];
+          break;
+        case "Детские":
+          channelPrefix = ["Детский", "Мультики", "Сказка", "Карусель", "KidsTV", "Детство"][Math.floor(Math.random() * 6)];
+          break;
+        case "Наука":
+          channelPrefix = ["Наука", "Открытие", "Знание", "Эксперимент", "Discovery", "Планета"][Math.floor(Math.random() * 6)];
+          break;
+        case "Музыка":
+          channelPrefix = ["Музыка", "Хиты", "Клипы", "Мелодия", "MusicBox", "Ритм"][Math.floor(Math.random() * 6)];
+          break;
+        case "Аниме":
+          channelPrefix = ["Аниме", "Манга", "Япония", "Мультфильм", "AnimeZone", "Отаку"][Math.floor(Math.random() * 6)];
+          break;
+        case "Документальные":
+          channelPrefix = ["Док", "История", "Расследование", "Факты", "DocuTV", "Хроника"][Math.floor(Math.random() * 6)];
+          break;
+        default:
+          channelPrefix = "Канал";
+      }
+      
+      // Создаем название канала, сохраняя оригинальное название видео
+      const channelName = `${channelPrefix} ${channelId}: ${video.title}`;
+      
+      // Добавляем канал в список
+      channels.push({
+        id: channelId,
+        name: channelName,
+        category,
+        thumbnail: `/placeholder.svg`,
+        videoUrl: video.url,
+        duration: video.duration,
+        description: video.description
+      });
+      
+      channelId++;
+    }
+  }
+  
+  // Ограничиваем количество каналов до запрошенного числа
+  return channels.slice(0, count);
 };
 
-// Генерируем 600+ каналов
+// Генерируем 620 каналов
 export const mockChannels = generateMockChannels(620);
