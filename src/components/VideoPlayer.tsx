@@ -11,6 +11,9 @@ interface Channel {
   name: string;
   category: string;
   thumbnail: string;
+  videoUrl: string;
+  duration: number;
+  description: string;
 }
 
 interface VideoPlayerProps {
@@ -25,13 +28,11 @@ const VideoPlayer = ({ channel }: VideoPlayerProps) => {
   const [duration, setDuration] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
+  const [videoError, setVideoError] = useState(false);
   
   const playerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsTimeoutRef = useRef<number | null>(null);
-  
-  // Mock video URL (in a real app, this would come from your backend)
-  const videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
   
   // Handle play/pause
   const togglePlay = () => {
@@ -39,7 +40,10 @@ const VideoPlayer = ({ channel }: VideoPlayerProps) => {
       if (isPlaying) {
         videoRef.current.pause();
       } else {
-        videoRef.current.play();
+        videoRef.current.play().catch(error => {
+          console.error("Ошибка при воспроизведении видео:", error);
+          setIsPlaying(false);
+        });
       }
       setIsPlaying(!isPlaying);
     }
@@ -86,26 +90,35 @@ const VideoPlayer = ({ channel }: VideoPlayerProps) => {
       if (!isInFullscreen) {
         // Пробуем разные методы для вызова полноэкранного режима
         if (playerRef.current.requestFullscreen) {
-          playerRef.current.requestFullscreen();
+          playerRef.current.requestFullscreen().catch(err => {
+            console.warn("Не удалось включить полноэкранный режим:", err);
+            throw new Error("Fullscreen API error");
+          });
         } else if ((playerRef.current as any).webkitRequestFullscreen) {
-          (playerRef.current as any).webkitRequestFullscreen();
+          (playerRef.current as any).webkitRequestFullscreen().catch(err => {
+            console.warn("Не удалось включить webkit полноэкранный режим:", err);
+            throw new Error("Webkit fullscreen API error");
+          });
         } else if ((playerRef.current as any).mozRequestFullScreen) {
-          (playerRef.current as any).mozRequestFullScreen();
+          (playerRef.current as any).mozRequestFullScreen().catch(err => {
+            console.warn("Не удалось включить moz полноэкранный режим:", err);
+            throw new Error("Moz fullscreen API error");
+          });
         } else if ((playerRef.current as any).msRequestFullscreen) {
-          (playerRef.current as any).msRequestFullscreen();
+          (playerRef.current as any).msRequestFullscreen().catch(err => {
+            console.warn("Не удалось включить ms полноэкранный режим:", err);
+            throw new Error("MS fullscreen API error");
+          });
         } else {
-          // Запасной вариант, если API полноэкранного режима не доступно
-          console.log("Fullscreen API не поддерживается в этом браузере");
-          
-          // Используем CSS для имитации полноэкранного режима
-          playerRef.current.classList.add("fixed", "inset-0", "z-50", "bg-black");
-          document.body.classList.add("overflow-hidden");
-          setIsFullscreen(true);
+          throw new Error("Fullscreen API not supported");
         }
       } else {
         // Выход из полноэкранного режима
         if (document.exitFullscreen) {
-          document.exitFullscreen();
+          document.exitFullscreen().catch(err => {
+            console.warn("Ошибка при выходе из полноэкранного режима:", err);
+            throw new Error("Exit fullscreen error");
+          });
         } else if ((document as any).webkitExitFullscreen) {
           (document as any).webkitExitFullscreen();
         } else if ((document as any).mozCancelFullScreen) {
@@ -113,16 +126,13 @@ const VideoPlayer = ({ channel }: VideoPlayerProps) => {
         } else if ((document as any).msExitFullscreen) {
           (document as any).msExitFullscreen();
         } else {
-          // Запасной вариант для CSS-имитации
-          playerRef.current.classList.remove("fixed", "inset-0", "z-50", "bg-black");
-          document.body.classList.remove("overflow-hidden");
-          setIsFullscreen(false);
+          throw new Error("Exit fullscreen not supported");
         }
       }
     } catch (err) {
       console.error(`Ошибка при переключении полноэкранного режима: ${err}`);
       
-      // Запасной вариант, если все методы полноэкранного режима не сработали
+      // Запасной вариант CSS имитации полноэкранного режима
       if (playerRef.current) {
         if (isFullscreen) {
           playerRef.current.classList.remove("fixed", "inset-0", "z-50", "bg-black");
@@ -151,8 +161,14 @@ const VideoPlayer = ({ channel }: VideoPlayerProps) => {
   
   // Format time (seconds -> MM:SS)
   const formatTime = (time: number) => {
-    const minutes = Math.floor(time / 60);
+    const hours = Math.floor(time / 3600);
+    const minutes = Math.floor((time % 3600) / 60);
     const seconds = Math.floor(time % 60);
+    
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+    
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
   
@@ -170,6 +186,20 @@ const VideoPlayer = ({ channel }: VideoPlayerProps) => {
       }
     }, 3000);
   };
+  
+  // Reset player state when channel changes
+  useEffect(() => {
+    if (videoRef.current) {
+      setIsPlaying(false);
+      setCurrentTime(0);
+      setVideoError(false);
+      
+      if (channel) {
+        // Устанавливаем длительность из данных канала для быстрого отображения
+        setDuration(channel.duration || 0);
+      }
+    }
+  }, [channel]);
   
   // Update time
   useEffect(() => {
@@ -189,11 +219,18 @@ const VideoPlayer = ({ channel }: VideoPlayerProps) => {
       setIsPlaying(false);
     };
     
+    const handleError = (e: ErrorEvent) => {
+      console.error("Ошибка видео:", e);
+      setVideoError(true);
+      setIsPlaying(false);
+    };
+    
     const videoElement = videoRef.current;
     if (videoElement) {
       videoElement.addEventListener('timeupdate', handleTimeUpdate);
       videoElement.addEventListener('durationchange', handleDurationChange);
       videoElement.addEventListener('ended', handleEnded);
+      videoElement.addEventListener('error', handleError as unknown as EventListener);
     }
     
     return () => {
@@ -201,6 +238,7 @@ const VideoPlayer = ({ channel }: VideoPlayerProps) => {
         videoElement.removeEventListener('timeupdate', handleTimeUpdate);
         videoElement.removeEventListener('durationchange', handleDurationChange);
         videoElement.removeEventListener('ended', handleEnded);
+        videoElement.removeEventListener('error', handleError as unknown as EventListener);
       }
       
       if (controlsTimeoutRef.current) {
@@ -290,15 +328,30 @@ const VideoPlayer = ({ channel }: VideoPlayerProps) => {
       <video
         ref={videoRef}
         className="w-full h-full object-contain"
-        src={videoUrl}
+        src={channel.videoUrl}
         poster={channel.thumbnail || "/placeholder.svg"}
         onClick={togglePlay}
         playsInline
-        allowFullScreen
+        crossOrigin="anonymous"
+        preload="metadata"
       />
       
+      {/* Video Error */}
+      {videoError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/90 text-white">
+          <div className="text-center p-4">
+            <div className="text-4xl mb-4">⚠️</div>
+            <h3 className="text-xl font-medium mb-2">Не удалось воспроизвести видео</h3>
+            <p className="text-muted-foreground mb-4">Проверьте подключение к интернету или попробуйте другой канал</p>
+            <Button onClick={() => setVideoError(false)} variant="outline">
+              Попробовать снова
+            </Button>
+          </div>
+        </div>
+      )}
+      
       {/* Play/Pause overlay */}
-      {!isPlaying && (
+      {!isPlaying && !videoError && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/30">
           <button 
             onClick={togglePlay}
@@ -318,7 +371,7 @@ const VideoPlayer = ({ channel }: VideoPlayerProps) => {
         {/* Title */}
         <div className="mb-4">
           <h3 className="text-white font-medium">{channel.name}</h3>
-          <p className="text-white/70 text-sm">{channel.category}</p>
+          <p className="text-white/70 text-sm">{channel.description}</p>
         </div>
         
         {/* Progress bar */}
