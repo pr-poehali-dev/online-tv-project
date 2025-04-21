@@ -70,15 +70,68 @@ const VideoPlayer = ({ channel }: VideoPlayerProps) => {
     }
   };
   
-  // Handle fullscreen
+  // Улучшенная функция переключения полноэкранного режима
   const toggleFullscreen = () => {
-    if (playerRef.current) {
-      if (!document.fullscreenElement) {
-        playerRef.current.requestFullscreen().catch(err => {
-          console.error(`Error attempting to enable full-screen mode: ${err.message}`);
-        });
+    if (!playerRef.current) return;
+    
+    try {
+      // Проверяем, находимся ли мы в полноэкранном режиме
+      const isInFullscreen = Boolean(
+        document.fullscreenElement || 
+        (document as any).webkitFullscreenElement || 
+        (document as any).mozFullScreenElement || 
+        (document as any).msFullscreenElement
+      );
+      
+      if (!isInFullscreen) {
+        // Пробуем разные методы для вызова полноэкранного режима
+        if (playerRef.current.requestFullscreen) {
+          playerRef.current.requestFullscreen();
+        } else if ((playerRef.current as any).webkitRequestFullscreen) {
+          (playerRef.current as any).webkitRequestFullscreen();
+        } else if ((playerRef.current as any).mozRequestFullScreen) {
+          (playerRef.current as any).mozRequestFullScreen();
+        } else if ((playerRef.current as any).msRequestFullscreen) {
+          (playerRef.current as any).msRequestFullscreen();
+        } else {
+          // Запасной вариант, если API полноэкранного режима не доступно
+          console.log("Fullscreen API не поддерживается в этом браузере");
+          
+          // Используем CSS для имитации полноэкранного режима
+          playerRef.current.classList.add("fixed", "inset-0", "z-50", "bg-black");
+          document.body.classList.add("overflow-hidden");
+          setIsFullscreen(true);
+        }
       } else {
-        document.exitFullscreen();
+        // Выход из полноэкранного режима
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        } else if ((document as any).webkitExitFullscreen) {
+          (document as any).webkitExitFullscreen();
+        } else if ((document as any).mozCancelFullScreen) {
+          (document as any).mozCancelFullScreen();
+        } else if ((document as any).msExitFullscreen) {
+          (document as any).msExitFullscreen();
+        } else {
+          // Запасной вариант для CSS-имитации
+          playerRef.current.classList.remove("fixed", "inset-0", "z-50", "bg-black");
+          document.body.classList.remove("overflow-hidden");
+          setIsFullscreen(false);
+        }
+      }
+    } catch (err) {
+      console.error(`Ошибка при переключении полноэкранного режима: ${err}`);
+      
+      // Запасной вариант, если все методы полноэкранного режима не сработали
+      if (playerRef.current) {
+        if (isFullscreen) {
+          playerRef.current.classList.remove("fixed", "inset-0", "z-50", "bg-black");
+          document.body.classList.remove("overflow-hidden");
+        } else {
+          playerRef.current.classList.add("fixed", "inset-0", "z-50", "bg-black");
+          document.body.classList.add("overflow-hidden");
+        }
+        setIsFullscreen(!isFullscreen);
       }
     }
   };
@@ -159,15 +212,61 @@ const VideoPlayer = ({ channel }: VideoPlayerProps) => {
   // Handle fullscreen change
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      const isInFullscreen = Boolean(
+        document.fullscreenElement || 
+        (document as any).webkitFullscreenElement || 
+        (document as any).mozFullScreenElement || 
+        (document as any).msFullscreenElement
+      );
+      
+      setIsFullscreen(isInFullscreen);
+      
+      // Если мы вышли из полноэкранного режима через CSS-имитацию
+      if (!isInFullscreen && playerRef.current?.classList.contains("fixed")) {
+        playerRef.current.classList.remove("fixed", "inset-0", "z-50", "bg-black");
+        document.body.classList.remove("overflow-hidden");
+      }
     };
     
     document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
     
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
     };
   }, []);
+  
+  // При размонтировании компонента убедимся, что мы выходим из полноэкранного режима
+  useEffect(() => {
+    return () => {
+      if (isFullscreen) {
+        try {
+          if (document.exitFullscreen) {
+            document.exitFullscreen();
+          } else if ((document as any).webkitExitFullscreen) {
+            (document as any).webkitExitFullscreen();
+          } else if ((document as any).mozCancelFullScreen) {
+            (document as any).mozCancelFullScreen();
+          } else if ((document as any).msExitFullscreen) {
+            (document as any).msExitFullscreen();
+          }
+          
+          // Если использовали CSS-имитацию
+          if (playerRef.current?.classList.contains("fixed")) {
+            playerRef.current.classList.remove("fixed", "inset-0", "z-50", "bg-black");
+            document.body.classList.remove("overflow-hidden");
+          }
+        } catch (err) {
+          console.error("Ошибка при выходе из полноэкранного режима:", err);
+        }
+      }
+    };
+  }, [isFullscreen]);
   
   if (!channel) {
     return (
@@ -195,6 +294,7 @@ const VideoPlayer = ({ channel }: VideoPlayerProps) => {
         poster={channel.thumbnail || "/placeholder.svg"}
         onClick={togglePlay}
         playsInline
+        allowFullScreen
       />
       
       {/* Play/Pause overlay */}
